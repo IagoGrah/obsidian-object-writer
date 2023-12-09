@@ -1,85 +1,58 @@
-import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import { App, Plugin, PluginSettingTab, Setting, normalizePath } from 'obsidian';
+import moment from 'moment';
+import words from 'words';
 
-// Remember to rename these classes and interfaces!
-
-interface MyPluginSettings {
-	mySetting: string;
+interface ObjectWriterPluginSettings {
+	noteName: string;
+	dateFormat: string;
+	timeFormat: string;
+	newFileLocation: string;
+	addTag: boolean;
 }
 
-const DEFAULT_SETTINGS: MyPluginSettings = {
-	mySetting: 'default'
+const DEFAULT_SETTINGS: ObjectWriterPluginSettings = {
+	noteName: '{{date}} ({{object}})',
+	dateFormat: 'YYYY-MM-DD',
+	timeFormat: 'HH:mm',
+	newFileLocation: 'ObjectWriter',
+	addTag: true
 }
 
-export default class MyPlugin extends Plugin {
-	settings: MyPluginSettings;
+export default class ObjectWriterPlugin extends Plugin {
+	settings: ObjectWriterPluginSettings;
 
 	async onload() {
 		await this.loadSettings();
 
-		// This creates an icon in the left ribbon.
-		const ribbonIconEl = this.addRibbonIcon('dice', 'Sample Plugin', (evt: MouseEvent) => {
-			// Called when the user clicks the icon.
-			new Notice('This is a notice!');
-		});
-		// Perform additional things with the ribbon
-		ribbonIconEl.addClass('my-plugin-ribbon-class');
-
-		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('Status Bar Text');
-
-		// This adds a simple command that can be triggered anywhere
-		this.addCommand({
-			id: 'open-sample-modal-simple',
-			name: 'Open sample modal (simple)',
-			callback: () => {
-				new SampleModal(this.app).open();
-			}
-		});
-		// This adds an editor command that can perform some operation on the current editor instance
-		this.addCommand({
-			id: 'sample-editor-command',
-			name: 'Sample editor command',
-			editorCallback: (editor: Editor, view: MarkdownView) => {
-				console.log(editor.getSelection());
-				editor.replaceSelection('Sample Editor Command');
-			}
-		});
-		// This adds a complex command that can check whether the current state of the app allows execution of the command
-		this.addCommand({
-			id: 'open-sample-modal-complex',
-			name: 'Open sample modal (complex)',
-			checkCallback: (checking: boolean) => {
-				// Conditions to check
-				const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (markdownView) {
-					// If checking is true, we're simply "checking" if the command can be run.
-					// If checking is false, then we want to actually perform the operation.
-					if (!checking) {
-						new SampleModal(this.app).open();
-					}
-
-					// This command will only show up in Command Palette when the check function returns true
-					return true;
-				}
-			}
+		this.addRibbonIcon('lucide-pen-tool', 'Create Object Writer note', async (evt: MouseEvent) => {
+			this.createObjectWriterNote();
 		});
 
-		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SampleSettingTab(this.app, this));
-
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-			console.log('click', evt);
-		});
-
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
+		this.addSettingTab(new ObjectWriterSettingTab(this.app, this));
 	}
 
-	onunload() {
+	async createObjectWriterNote() {
+		let newFile = null;
+		
+		const randomWord = words[Math.floor(Math.random() * words.length)];
+		const fileName = await this.getNewNoteName(randomWord);
+		const filePath = normalizePath(this.settings.newFileLocation + '/' + fileName + '.md');
+		try {
+			newFile = await this.app.vault.create(filePath, this.settings.addTag ? '#ObjectWriter' : '');
+		} catch (error) {
+			alert(`Couldn't create Object Writer file: ${fileName}\n${error.toString()}`);
+		}
 
+		if (newFile) {
+			await this.app.workspace.getLeaf(false).openFile(newFile);
+		}
+	}
+
+	async getNewNoteName(randomWord: string) {
+		return this.settings.noteName
+			.replace('{{date}}', moment().format(this.settings.dateFormat))
+			.replace('{{time}}', moment().format(this.settings.timeFormat))
+			.replace('{{object}}', randomWord);
 	}
 
 	async loadSettings() {
@@ -91,26 +64,10 @@ export default class MyPlugin extends Plugin {
 	}
 }
 
-class SampleModal extends Modal {
-	constructor(app: App) {
-		super(app);
-	}
+class ObjectWriterSettingTab extends PluginSettingTab {
+	plugin: ObjectWriterPlugin;
 
-	onOpen() {
-		const {contentEl} = this;
-		contentEl.setText('Woah!');
-	}
-
-	onClose() {
-		const {contentEl} = this;
-		contentEl.empty();
-	}
-}
-
-class SampleSettingTab extends PluginSettingTab {
-	plugin: MyPlugin;
-
-	constructor(app: App, plugin: MyPlugin) {
+	constructor(app: App, plugin: ObjectWriterPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
@@ -121,13 +78,64 @@ class SampleSettingTab extends PluginSettingTab {
 		containerEl.empty();
 
 		new Setting(containerEl)
-			.setName('Setting #1')
-			.setDesc('It\'s a secret')
+			.setName('Note name')
+			.setDesc('Name format for new Object Writer notes. You can use the following keywords: {{date}}, {{time}}, {{object}}')
 			.addText(text => text
-				.setPlaceholder('Enter your secret')
-				.setValue(this.plugin.settings.mySetting)
+				.setPlaceholder(DEFAULT_SETTINGS.noteName)
+				.setValue(this.plugin.settings.noteName)
 				.onChange(async (value) => {
-					this.plugin.settings.mySetting = value;
+					this.plugin.settings.noteName = value;
+					await this.plugin.saveSettings();
+				}));
+
+		const getSyntaxDesc = (format: string, defaultFormat: string) => {
+			if (!format) {
+				format = defaultFormat;
+			}
+			return `Your current syntax looks like this: ${moment().format(format)}`;
+		}
+		let dateFormatSetting = new Setting(containerEl)
+			.setName('Date format')
+			.setDesc(getSyntaxDesc(this.plugin.settings.dateFormat, DEFAULT_SETTINGS.dateFormat))
+			.addText(text => text
+				.setPlaceholder(DEFAULT_SETTINGS.dateFormat)
+				.setValue(this.plugin.settings.dateFormat)
+				.onChange(async (value) => {
+					this.plugin.settings.dateFormat = value;
+					dateFormatSetting.setDesc(getSyntaxDesc(value, DEFAULT_SETTINGS.dateFormat));
+					await this.plugin.saveSettings();
+				}));
+
+		let timeFormatSetting = new Setting(containerEl)
+			.setName('Time format')
+			.setDesc(getSyntaxDesc(this.plugin.settings.timeFormat, DEFAULT_SETTINGS.timeFormat))
+			.addText(text => text
+				.setPlaceholder(DEFAULT_SETTINGS.timeFormat)
+				.setValue(this.plugin.settings.timeFormat)
+				.onChange(async (value) => {
+					this.plugin.settings.timeFormat = value;
+					timeFormatSetting.setDesc(getSyntaxDesc(value, DEFAULT_SETTINGS.timeFormat));
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName('New file location')
+			.setDesc('New Object Writer notes will be placed here. Please inform an existing folder.')
+			.addText(text => text
+				.setPlaceholder('Example: folder1/folder2')
+				.setValue(this.plugin.settings.newFileLocation)
+				.onChange(async (value) => {
+					this.plugin.settings.newFileLocation = value;
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName('Add tag')
+			.setDesc('When you create a new Object Writer note, automatically add a #ObjectWriter tag.')
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.addTag)
+				.onChange(async (value) => {
+					this.plugin.settings.addTag = value;
 					await this.plugin.saveSettings();
 				}));
 	}
