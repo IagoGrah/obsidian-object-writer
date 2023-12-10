@@ -28,6 +28,8 @@ Unfortunately, unlike the console version, this plugin does not have a built-in 
 #### Some things I'd like to add:
 + Timer.
 + Option to use a template for the notes.
++ Custom word list (for different languages, for example).
++ **Option to integrate into the daily note instead of creating new notes.**
 
 ---
 
