@@ -1,5 +1,4 @@
-import { App, Plugin, PluginSettingTab, Setting, normalizePath } from 'obsidian';
-import moment from 'moment';
+import { App, moment, MomentFormatComponent, Notice, Plugin, PluginSettingTab, Setting, normalizePath } from 'obsidian';
 import words from 'words';
 
 interface ObjectWriterPluginSettings {
@@ -24,7 +23,7 @@ export default class ObjectWriterPlugin extends Plugin {
 	async onload() {
 		await this.loadSettings();
 
-		this.addRibbonIcon('lucide-pen-tool', 'Create Object Writer note', async (evt: MouseEvent) => {
+		this.addRibbonIcon('lucide-pen-tool', 'Create object writing note', async (evt: MouseEvent) => {
 			this.createObjectWriterNote();
 		});
 
@@ -33,14 +32,14 @@ export default class ObjectWriterPlugin extends Plugin {
 
 	async createObjectWriterNote() {
 		let newFile = null;
-		
+
 		const randomWord = words[Math.floor(Math.random() * words.length)];
 		const fileName = await this.getNewNoteName(randomWord);
 		const filePath = normalizePath(this.settings.newFileLocation + '/' + fileName + '.md');
 		try {
 			newFile = await this.app.vault.create(filePath, this.settings.addTag ? '#ObjectWriter' : '');
 		} catch (error) {
-			alert(`Couldn't create Object Writer file: ${fileName}\n${error.toString()}`);
+			new Notice(`Couldn't create object writing note: ${fileName}\n${error.toString()}`);
 		}
 
 		if (newFile) {
@@ -49,7 +48,7 @@ export default class ObjectWriterPlugin extends Plugin {
 	}
 
 	async getNewNoteName(randomWord: string) {
-		return this.settings.noteName
+			return this.settings.noteName
 			.replace('{{date}}', moment().format(this.settings.dateFormat))
 			.replace('{{time}}', moment().format(this.settings.timeFormat))
 			.replace('{{object}}', randomWord);
@@ -79,7 +78,7 @@ class ObjectWriterSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Note name')
-			.setDesc('Name format for new Object Writer notes. You can use the following keywords: {{date}}, {{time}}, {{object}}')
+			.setDesc('Name format for new object writing notes. You can use the following keywords: {{date}}, {{time}}, {{object}}')
 			.addText(text => text
 				.setPlaceholder(DEFAULT_SETTINGS.noteName)
 				.setValue(this.plugin.settings.noteName)
@@ -88,39 +87,48 @@ class ObjectWriterSettingTab extends PluginSettingTab {
 					await this.plugin.saveSettings();
 				}));
 
-		const getSyntaxDesc = (format: string, defaultFormat: string) => {
-			if (!format) {
-				format = defaultFormat;
+		const getSyntaxDesc = (setting: Setting, formatComponent: MomentFormatComponent) => {
+			if (formatComponent) {
+				const text = setting.descEl.createDiv("text");
+				text.setText("Your current syntax looks like this: ");
+				const sampleEl = text.createSpan("sample");
+				formatComponent.setSampleEl(sampleEl);
 			}
-			return `Your current syntax looks like this: ${moment().format(format)}`;
 		}
-		let dateFormatSetting = new Setting(containerEl)
-			.setName('Date format')
-			.setDesc(getSyntaxDesc(this.plugin.settings.dateFormat, DEFAULT_SETTINGS.dateFormat))
-			.addText(text => text
-				.setPlaceholder(DEFAULT_SETTINGS.dateFormat)
-				.setValue(this.plugin.settings.dateFormat)
-				.onChange(async (value) => {
-					this.plugin.settings.dateFormat = value;
-					dateFormatSetting.setDesc(getSyntaxDesc(value, DEFAULT_SETTINGS.dateFormat));
-					await this.plugin.saveSettings();
-				}));
 
-		let timeFormatSetting = new Setting(containerEl)
+		let dateFormatComponent!: MomentFormatComponent;
+		const dateFormatSetting = new Setting(containerEl)
+			.setName('Date format')
+			.addMomentFormat((format: MomentFormatComponent) => {
+				dateFormatComponent = format
+					.setDefaultFormat(DEFAULT_SETTINGS.dateFormat)	
+					.setPlaceholder(DEFAULT_SETTINGS.dateFormat)
+					.setValue(this.plugin.settings.dateFormat)
+					.onChange(async (value) => {
+						this.plugin.settings.dateFormat = value;
+						await this.plugin.saveSettings();
+					});
+				});
+		getSyntaxDesc(dateFormatSetting, dateFormatComponent);
+
+		let timeFormatComponent!: MomentFormatComponent;
+		const timeFormatSetting = new Setting(containerEl)
 			.setName('Time format')
-			.setDesc(getSyntaxDesc(this.plugin.settings.timeFormat, DEFAULT_SETTINGS.timeFormat))
-			.addText(text => text
-				.setPlaceholder(DEFAULT_SETTINGS.timeFormat)
-				.setValue(this.plugin.settings.timeFormat)
-				.onChange(async (value) => {
-					this.plugin.settings.timeFormat = value;
-					timeFormatSetting.setDesc(getSyntaxDesc(value, DEFAULT_SETTINGS.timeFormat));
-					await this.plugin.saveSettings();
-				}));
+			.addMomentFormat((format: MomentFormatComponent) => {
+				timeFormatComponent = format
+					.setDefaultFormat(DEFAULT_SETTINGS.timeFormat)	
+					.setPlaceholder(DEFAULT_SETTINGS.timeFormat)
+					.setValue(this.plugin.settings.timeFormat)
+					.onChange(async (value) => {
+						this.plugin.settings.timeFormat = value;
+						await this.plugin.saveSettings();
+					});
+				});
+		getSyntaxDesc(timeFormatSetting, timeFormatComponent);
 
 		new Setting(containerEl)
 			.setName('New file location')
-			.setDesc('New Object Writer notes will be placed here. Please inform an existing folder.')
+			.setDesc('New object writing notes will be placed here. Please inform an existing folder.')
 			.addText(text => text
 				.setPlaceholder('Example: folder1/folder2')
 				.setValue(this.plugin.settings.newFileLocation)
@@ -131,7 +139,7 @@ class ObjectWriterSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Add tag')
-			.setDesc('When you create a new Object Writer note, automatically add a #ObjectWriter tag.')
+			.setDesc('When you create a new object writing note, automatically add a #ObjectWriter tag.')
 			.addToggle(toggle => toggle
 				.setValue(this.plugin.settings.addTag)
 				.onChange(async (value) => {
