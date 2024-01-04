@@ -5,6 +5,6 @@
 	"minAppVersion": "0.15.0",
 	"description": "Quickly create a note with a prompt for object writing.",
 	"author": "Iago Grah",
-	"authorUrl": "https://github.com/IagoGrah/obsidian-object-writer",
+	"authorUrl": "https://github.com/IagoGrah",
 	"isDesktopOnly": false
 }
