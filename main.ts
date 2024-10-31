@@ -1,4 +1,4 @@
-import { App, moment, MomentFormatComponent, Notice, Plugin, PluginSettingTab, Setting, normalizePath } from 'obsidian';
+import { App, moment, MomentFormatComponent, Notice, Plugin, PluginSettingTab, Setting, normalizePath, View, WorkspaceLeaf, MarkdownView } from 'obsidian';
 import words from 'words';
 
 interface ObjectWriterPluginSettings {
@@ -7,6 +7,11 @@ interface ObjectWriterPluginSettings {
 	timeFormat: string;
 	newFileLocation: string;
 	addTag: boolean;
+	addTimer: boolean;
+	timerDuration: number;
+	timerPosition: string;
+	timerAutoRead: boolean;
+	timerAddRule: boolean;
 }
 
 const DEFAULT_SETTINGS: ObjectWriterPluginSettings = {
@@ -14,7 +19,12 @@ const DEFAULT_SETTINGS: ObjectWriterPluginSettings = {
 	dateFormat: 'YYYY-MM-DD',
 	timeFormat: 'HH:mm',
 	newFileLocation: 'ObjectWriter',
-	addTag: true
+	addTag: true,
+	addTimer: true,
+	timerDuration: 600,
+	timerPosition: 'center',
+	timerAutoRead: true,
+	timerAddRule: true,
 }
 
 export default class ObjectWriterPlugin extends Plugin {
@@ -28,6 +38,53 @@ export default class ObjectWriterPlugin extends Plugin {
 		});
 
 		this.addSettingTab(new ObjectWriterSettingTab(this.app, this));
+
+		this.registerMarkdownCodeBlockProcessor('objectwritertimer', (source, el) => {
+			const dateString = source.trim();
+			const targetDate = moment(dateString, true).toDate();
+			if (!targetDate.getTime()) {
+				return;
+			}
+			let now = new Date().getTime();
+			let timeRemaining = targetDate.getTime() - now;
+			if (timeRemaining < 0) {
+				return;
+			}
+
+			const countdownContainer = el.createDiv(`object-writer-timer ${this.settings.timerPosition}`);
+			const minutesElement = countdownContainer.createSpan();
+			const secondsElement = countdownContainer.createSpan();
+
+			const updateTimer = () => {
+				now = new Date().getTime();
+				timeRemaining = targetDate.getTime() - now;
+				if (timeRemaining < 0) {
+					countdownContainer.remove();
+					if (this.settings.timerAutoRead) {
+						const leaf = this.app.workspace.getActiveViewOfType(MarkdownView)?.leaf;
+						if (leaf) {
+							const viewState = leaf.getViewState();
+							viewState.state.mode = 'preview';
+							viewState.state.source = false;
+							leaf.setViewState(viewState);
+						}
+					}
+					return;
+				}
+
+				const minutes = Math.floor(
+					(timeRemaining % (1000 * 60 * 60)) / (1000 * 60)
+				);
+				const seconds = Math.floor(
+					(timeRemaining % (1000 * 60)) / 1000
+				);
+				minutesElement.setText(`${minutes}:`);
+				secondsElement.setText(`${seconds < 10 ? '0' : ''}${seconds}`);
+
+				setTimeout(updateTimer, 1000);
+			};
+			updateTimer();
+    });
 	}
 
 	async createObjectWriterNote() {
@@ -37,13 +94,29 @@ export default class ObjectWriterPlugin extends Plugin {
 		const fileName = await this.getNewNoteName(randomWord);
 		const filePath = normalizePath(this.settings.newFileLocation + '/' + fileName + '.md');
 		try {
-			newFile = await this.app.vault.create(filePath, this.settings.addTag ? '#ObjectWriter' : '');
+			let noteContent = [];
+			if (this.settings.addTag) {
+				noteContent.push('#ObjectWriter');
+				noteContent.push('\n\n')
+			}
+			if (this.settings.addTimer){
+				const timerTarget = new Date();
+				timerTarget.setSeconds(timerTarget.getSeconds() + this.settings.timerDuration);
+				noteContent.push(`\`\`\`objectwritertimer\n${timerTarget.toISOString()}\n\`\`\``)
+				if (this.settings.timerAddRule) {
+					noteContent.push('\n---');
+				}
+				noteContent.push('\n\n');
+			}
+			newFile = await this.app.vault.create(filePath, noteContent.join(''));
 		} catch (error) {
 			new Notice(`Couldn't create object writing note: ${fileName}\n${error.toString()}`);
 		}
 
 		if (newFile) {
 			await this.app.workspace.getLeaf(false).openFile(newFile);
+			let editor = this.app.workspace.activeEditor?.editor;
+			editor?.setCursor(editor.lastLine(), 0);
 		}
 	}
 
@@ -144,6 +217,66 @@ class ObjectWriterSettingTab extends PluginSettingTab {
 				.setValue(this.plugin.settings.addTag)
 				.onChange(async (value) => {
 					this.plugin.settings.addTag = value;
+					await this.plugin.saveSettings();
+				}));
+			
+		new Setting(containerEl)
+			.setHeading()
+			.setName('Timer');
+
+		new Setting(containerEl)
+			.setName('Add timer')
+			.setDesc('When you create a new object writing note, include a countdown timer.')
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.addTimer)
+				.onChange(async (value) => {
+					this.plugin.settings.addTimer = value;
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName('Timer duration (in seconds)')
+			.setDesc('Set this to how long you want to write for and the timer (if enabled) will count down for you.')
+			.addText(text => {
+				text.inputEl.type = 'number';
+				text.setValue(String(this.plugin.settings.timerDuration));
+				text.onChange(async (value) => {
+					this.plugin.settings.timerDuration = value !== '' ? Number(value) : 0;
+					await this.plugin.saveSettings();
+				})
+			});
+
+		new Setting(containerEl)
+			.setName('Timer position')
+			.setDesc('Where the timer will be shown (left, center or right).')
+			.addDropdown(async dropdown => {
+				dropdown.addOption('left', 'left');
+				dropdown.addOption('center', 'center');
+				dropdown.addOption('right', 'right');
+				dropdown.setValue(this.plugin.settings.timerPosition);
+				dropdown.onChange(async (option) => {
+					this.plugin.settings.timerPosition = option;
+					await this.plugin.saveSettings();
+				});
+			});
+
+		new Setting(containerEl)
+			.setName('Enter read mode when timer ends')
+			.setDesc('When your time is up, the note will automatically enter reading mode. You can return to edit mode normally afterwards.')
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.timerAutoRead)
+				.onChange(async (value) => {
+					this.plugin.settings.timerAutoRead = value;
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName('Add horizontal rule')
+			.setDesc('Add a horizontal rule (---) below the timer to separate it from your writing.')
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.timerAddRule)
+				.onChange(async (value) => {
+					this.plugin.settings.timerAddRule = value;
 					await this.plugin.saveSettings();
 				}));
 	}

@@ -1,0 +1,13 @@
+.object-writer-timer {
+	font-size: 1em;
+	font-weight: bold;
+}
+.object-writer-timer.left {
+	text-align: left;
+}
+.object-writer-timer.center {
+	text-align: center;
+}
+.object-writer-timer.right {
+	text-align: right;
+}
