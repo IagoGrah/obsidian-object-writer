@@ -1,4 +1,4 @@
-import { App, moment, MomentFormatComponent, Notice, Plugin, PluginSettingTab, Setting, normalizePath, View, WorkspaceLeaf, MarkdownView } from 'obsidian';
+import { App, moment, MomentFormatComponent, Notice, Plugin, PluginSettingTab, Setting, normalizePath, MarkdownView } from 'obsidian';
 import words from 'words';
 
 interface ObjectWriterPluginSettings {
