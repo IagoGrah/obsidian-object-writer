@@ -12,7 +12,8 @@ I had made a console app that used notepad for this purpose originally. [Here's 
 
 ### How it works
 
-+ When you press the new pen ribbon icon, a new note will be created and opened (like the daily note), this new note will have a random word. Just write away, that easy.
++ When you press the new pen ribbon icon, a new note will be created and opened (like the daily note), this new note will have a random word and a timer counting down. Just write away, that easy.
++ When the timer reaches zero, you will automatically enter read mode (this behavior can be disabled).
 + The new file name will be formatted according to the 'Note name' setting, you can use the following keywords:
   + {{date}}: Current date, formatted according to 'Date format'.
   + {{time}}: Current time, formatted according to 'Time format'.
@@ -20,13 +21,11 @@ I had made a console app that used notepad for this purpose originally. [Here's 
   + _Example_: '{{date}} ({{object}})' -> '2023-12-09 (Word)'
 + The path for the new file can also be changed via settings.
 + By default, the new note will have a '#ObjectWriter' tag, you can disable this via settings.
++ The timer can also be disabled or configured to your liking via settings.
 
 ---
 
-Unfortunately, unlike the console version, this plugin does not have a built-in timer, since I just learned how to create plugins and made this in a few hours. At some point, I might try to implement it.
-
 #### Some things I'd like to add:
-+ Timer.
 + Option to use a template for the notes.
 + Custom word list (for different languages, for example).
 + **Option to integrate into the daily note instead of creating new notes.**
