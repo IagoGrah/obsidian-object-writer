@@ -64,9 +64,11 @@ export default class ObjectWriterPlugin extends Plugin {
 						const leaf = this.app.workspace.getActiveViewOfType(MarkdownView)?.leaf;
 						if (leaf) {
 							const viewState = leaf.getViewState();
-							viewState.state.mode = 'preview';
-							viewState.state.source = false;
-							leaf.setViewState(viewState);
+							if (viewState?.state) {
+								viewState.state.mode = 'preview';
+								viewState.state.source = false;
+								leaf.setViewState(viewState);
+							}
 						}
 					}
 					return;
